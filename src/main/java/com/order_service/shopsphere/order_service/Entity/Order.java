@@ -20,6 +20,9 @@ public class Order {
     @Column(nullable = false)
     private UUID productId;
 
+    @Column(nullable = false ,columnDefinition = "BINARY(16)")
+    private UUID userId;
+
     @Column(nullable = false)
     private int quantity;
 

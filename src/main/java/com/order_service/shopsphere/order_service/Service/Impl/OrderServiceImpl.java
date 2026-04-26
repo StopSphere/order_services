@@ -2,6 +2,7 @@ package com.order_service.shopsphere.order_service.Service.Impl;
 
 import com.order_service.shopsphere.order_service.Client.ProductClient;
 import com.order_service.shopsphere.order_service.Client.StockRequest;
+import com.order_service.shopsphere.order_service.Client.userClient;
 import com.order_service.shopsphere.order_service.DTO.request.CreateOrderRequestDTO;
 import com.order_service.shopsphere.order_service.DTO.response.OrderResponseDTO;
 import com.order_service.shopsphere.order_service.DTO.response.PagedResponse;
@@ -37,32 +38,26 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductClient productClient;
     private final OrderMapper orderMapper;
+    private final userClient userClient; //handling order with user id
     //logs
     private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
-    @Value("${server.port}") //just for load balancer testing
-    String server;
+
+/*    @Value("${server.port}") //just for load balancer testing
+    String server;*/
     @Override
     @CircuitBreaker(name = "productService", fallbackMethod = "handleProductServiceFailure")
     public OrderResponseDTO createOrder(CreateOrderRequestDTO requestDTO) {
 
-        System.out.println("Server Port: " + server);
+        System.out.println("UserId from request: " + requestDTO.getUserId());
+        userClient.getUserById(requestDTO.getUserId());
+        productClient.reduceStock(requestDTO.getProductId(),new StockRequest(requestDTO.getQuantity()) );
 
         Order order = Order.builder()
+                .userId(requestDTO.getUserId())
                 .productId(requestDTO.getProductId())
                 .quantity(requestDTO.getQuantity())
-                .status(OrderStatus.PROCESSING)
+                .status(OrderStatus.CREATED)
                 .build();
-
-        StockRequest stockRequest = StockRequest.builder()
-                .quantity(requestDTO.getQuantity())
-                .build();
-
-
-        logger.info("Calling Product Service...");
-        productClient.reduceStock(requestDTO.getProductId(), stockRequest);
-
-        order.setStatus(OrderStatus.CREATED);
-
         Order savedOrder = orderRepository.save(order);
         return orderMapper.toResponseDTO(savedOrder);
     }
