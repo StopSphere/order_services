@@ -2,16 +2,13 @@ package com.order_service.shopsphere.order_service.Client;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-@FeignClient(name = "product-service", url = "http://localhost:8081/v1/api/products")
+@FeignClient(name = "product-service" )
 public interface ProductClient {
 
-    @PatchMapping("/{id}/reduce")
+    @PostMapping("/v1/api/products/{id}/reduce" )
     void reduceStock(@PathVariable UUID id, @RequestBody StockRequest stockRequest);
 }

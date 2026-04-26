@@ -16,4 +16,14 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+resilience4j:
+  circuit breaker:
+    instances:
+      productService:
+        slidingWindowSize: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
