@@ -19,7 +19,7 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://host.docker.internal:8761/eureka/
     fetch-registry: true
     register-with-eureka: true
   instance:
@@ -32,3 +32,5 @@ resilience4j:
         slidingWindowSize: 5
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
+
+jwt.secret: mysupersecretkeymysupersecretkey123

@@ -12,5 +12,4 @@ public interface userClient {
 
     @GetMapping("/v1/api/users/{id}")
     UserResponse getUserById(@PathVariable UUID id);
-
 }

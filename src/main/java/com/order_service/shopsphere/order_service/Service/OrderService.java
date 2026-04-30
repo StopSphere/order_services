@@ -6,6 +6,7 @@ import com.order_service.shopsphere.order_service.DTO.response.PagedResponse;
 import com.order_service.shopsphere.order_service.Entity.Order;
 import com.order_service.shopsphere.order_service.Entity.OrderStatus;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface OrderService {
@@ -13,6 +14,8 @@ public interface OrderService {
     public OrderResponseDTO createOrder(CreateOrderRequestDTO requestDTO);
 
     OrderResponseDTO getOrderById(UUID orderId);
+
+    public List<OrderResponseDTO> getOrdersByUserId(UUID userId);
 
     PagedResponse<OrderResponseDTO> getAllOrders(int page, int size , String sortBy, String sortOrder, OrderStatus status, UUID productId);
 }

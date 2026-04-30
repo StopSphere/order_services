@@ -7,8 +7,8 @@ import com.order_service.shopsphere.order_service.Entity.OrderStatus;
 import com.order_service.shopsphere.order_service.Service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -35,6 +35,14 @@ public class OrderController {
     public ResponseEntity<PagedResponse<OrderResponseDTO>> getAllOrders(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5" ) int size, @RequestParam(defaultValue = "orderId" ) String sortBy, @RequestParam(defaultValue = "asc") String sortOrder,
                                                                         @RequestParam(required = false) OrderStatus status, @RequestParam(required = false) UUID productId){
         return  ResponseEntity.ok(orderService.getAllOrders(page, size, sortBy, sortOrder,status,productId));
+    }
+
+    @PostMapping("/orders")
+    public ResponseEntity<String> createOrder(Authentication authentication) {
+
+        String username = authentication.getName();
+
+        return ResponseEntity.ok("Order created by: " + username);
     }
 
 
