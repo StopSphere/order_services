@@ -35,30 +35,31 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @CircuitBreaker(name = "inventoryService", fallbackMethod = "handleInventoryFailure")
-    public OrderResponseDTO createOrder(CreateOrderRequestDTO requestDTO) {
+    public OrderResponseDTO createOrder(CreateOrderRequestDTO requestDTO, UUID userId) {
 
-        logger.info("Creating order for user: {}", requestDTO.getUserId());
-
-        if (requestDTO.getUserId() == null) {
+        // Step 1: validate userId (JWT se aaya)
+        if (userId == null) {
             throw new OrderServiceException("UserId is required");
         }
 
-        // 🔥 STEP 1: Create order object first (IMPORTANT)
+        logger.info("Creating order for user: {}", userId);
+
+        // Step 2: Create order object
         Order order = Order.builder()
-                .userId(requestDTO.getUserId())
+                .userId(userId)   //FIXED
                 .productId(requestDTO.getProductId())
                 .quantity(requestDTO.getQuantity())
                 .status(OrderStatus.CREATED)
                 .build();
 
         try {
-            // 🔥 STEP 2: Deduct stock
+            // Step 3: Call inventory service
             inventoryClient.removeStock(
                     requestDTO.getProductId(),
                     requestDTO.getQuantity()
             );
 
-            // 🔥 STEP 3: Save order
+            // Step 4: Save order
             Order savedOrder = orderRepository.save(order);
 
             logger.info("Order created successfully with id: {}", savedOrder.getOrderId());
@@ -67,9 +68,7 @@ public class OrderServiceImpl implements OrderService {
 
         } catch (Exception e) {
 
-            logger.error("Order failed: {}", e.getMessage());
-            order.setStatus(OrderStatus.CANCELLED);
-            orderRepository.save(order);
+            logger.error("Order failed for user {}: {}", userId, e.getMessage());
 
             throw new OrderServiceException("Order failed due to inventory issue");
         }
@@ -80,23 +79,28 @@ public class OrderServiceImpl implements OrderService {
     public PagedResponse<OrderResponseDTO> getAllOrders(int page, int size, String sortBy, String sortOrder, OrderStatus status, UUID productId) {
 
         logger.info("Fetching orders: page={}, size={}, sortBy={}, order={}", page, size, sortBy, sortOrder);
-
-        //  Sorting
-        Sort sort = sortOrder.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-        Pageable pageable = PageRequest.of(page, size, sort);
-
         Page<Order> orderPage;
 
-        // Filtering logic (IMPORTANT FIX)
-        if (status != null && productId != null) {
-            orderPage = orderRepository.findByStatusAndProductId(status, productId, pageable);
-        } else if (status != null) {
-            orderPage = orderRepository.findByStatus(status, pageable);
-        } else if (productId != null) {
-            orderPage = orderRepository.findByProductId(productId, pageable);
-        } else {
-            orderPage = orderRepository.findAll(pageable);
+
+        try {
+            //  Sorting
+            Sort sort = sortOrder.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+
+            Pageable pageable = PageRequest.of(page, size, sort);
+
+            // Filtering logic (IMPORTANT FIX)
+            if (status != null && productId != null) {
+                orderPage = orderRepository.findByStatusAndProductId(status, productId, pageable);
+            } else if (status != null) {
+                orderPage = orderRepository.findByStatus(status, pageable);
+            } else if (productId != null) {
+                orderPage = orderRepository.findByProductId(productId, pageable);
+            } else {
+                orderPage = orderRepository.findAll(pageable);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
         }
 
         //  Mapping
@@ -133,13 +137,13 @@ public class OrderServiceImpl implements OrderService {
                 .toList();
     }
 
-    // Correct fallback
-    public OrderResponseDTO handleInventoryFailure(CreateOrderRequestDTO requestDTO, Throwable ex) {
-        logger.error("Inventory service failed: {}", ex.getMessage());
+    public OrderResponseDTO handleInventoryFailure(
+            CreateOrderRequestDTO requestDTO,
+            UUID userId,
+            Exception ex) {
 
-        Order order = Order.builder().userId(requestDTO.getUserId())  // no conversion
-                .productId(requestDTO.getProductId()).quantity(requestDTO.getQuantity()).status(OrderStatus.CANCELLED).build();
+        logger.error("Fallback triggered for user {}: {}", userId, ex.getMessage());
 
-        return orderMapper.toResponseDTO(orderRepository.save(order));
+        throw new OrderServiceException("Inventory service is down. Please try again later.");
     }
 }

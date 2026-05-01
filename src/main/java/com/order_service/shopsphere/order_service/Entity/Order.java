@@ -27,7 +27,6 @@ public class Order {
     private int quantity;
 
     @Column(nullable = false)
-    @Enumerated(EnumType.STRING)
     private OrderStatus status;
 
 }

@@ -21,29 +21,31 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping
-    public ResponseEntity<OrderResponseDTO> createOrder(@RequestBody @Valid CreateOrderRequestDTO requestDTO){
-        OrderResponseDTO responseDTO=orderService.createOrder(requestDTO);
-        return ResponseEntity.ok(responseDTO);
+    public ResponseEntity<OrderResponseDTO> createOrder(
+            @RequestBody @Valid CreateOrderRequestDTO requestDTO,
+            Authentication authentication) {
+
+        UUID userId = UUID.fromString(authentication.getName());
+
+        return ResponseEntity.ok(orderService.createOrder(requestDTO, userId));
     }
 
     @GetMapping("/{orderId}")
-    public ResponseEntity<OrderResponseDTO> getOrderById(@PathVariable UUID orderId){
+    public ResponseEntity<OrderResponseDTO> getOrderById(@PathVariable UUID orderId) {
         return ResponseEntity.ok(orderService.getOrderById(orderId));
     }
 
     @GetMapping
-    public ResponseEntity<PagedResponse<OrderResponseDTO>> getAllOrders(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5" ) int size, @RequestParam(defaultValue = "orderId" ) String sortBy, @RequestParam(defaultValue = "asc") String sortOrder,
-                                                                        @RequestParam(required = false) OrderStatus status, @RequestParam(required = false) UUID productId){
-        return  ResponseEntity.ok(orderService.getAllOrders(page, size, sortBy, sortOrder,status,productId));
+    public ResponseEntity<PagedResponse<OrderResponseDTO>> getAllOrders(Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(defaultValue = "orderId") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortOrder,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) UUID productId) {
+
+        return ResponseEntity.ok(
+                orderService.getAllOrders(page, size, sortBy, sortOrder, status, productId)
+        );
     }
-
-    @PostMapping("/orders")
-    public ResponseEntity<String> createOrder(Authentication authentication) {
-
-        String username = authentication.getName();
-
-        return ResponseEntity.ok("Order created by: " + username);
-    }
-
-
 }
