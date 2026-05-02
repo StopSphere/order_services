@@ -24,7 +24,7 @@ public class Order {
     private UUID userId;
 
     @Column(nullable = false)
-    private int quantity;
+    private Integer quantity;
 
     @Column(nullable = false)
     private OrderStatus status;

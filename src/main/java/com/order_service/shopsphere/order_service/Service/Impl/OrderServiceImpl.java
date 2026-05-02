@@ -1,12 +1,14 @@
 package com.order_service.shopsphere.order_service.Service.Impl;
 
 import com.order_service.shopsphere.order_service.Client.InventoryClient;
+import com.order_service.shopsphere.order_service.DTO.Event.OrderCreatedEvent;
 import com.order_service.shopsphere.order_service.DTO.request.CreateOrderRequestDTO;
 import com.order_service.shopsphere.order_service.DTO.response.OrderResponseDTO;
 import com.order_service.shopsphere.order_service.DTO.response.PagedResponse;
 import com.order_service.shopsphere.order_service.Entity.Order;
 import com.order_service.shopsphere.order_service.Entity.OrderStatus;
 import com.order_service.shopsphere.order_service.Exception.OrderServiceException;
+import com.order_service.shopsphere.order_service.Kafka.OrderEventProducer;
 import com.order_service.shopsphere.order_service.Mapper.OrderMapper;
 import com.order_service.shopsphere.order_service.Repository.OrderRepository;
 import com.order_service.shopsphere.order_service.Service.OrderService;
@@ -30,6 +32,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final InventoryClient inventoryClient;
     private final OrderMapper orderMapper;
+    private final OrderEventProducer producer;
 
     private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
@@ -37,6 +40,7 @@ public class OrderServiceImpl implements OrderService {
     @CircuitBreaker(name = "inventoryService", fallbackMethod = "handleInventoryFailure")
     public OrderResponseDTO createOrder(CreateOrderRequestDTO requestDTO, UUID userId) {
 
+        System.out.println("Received create order request: " + requestDTO + " for user: " + userId);
         // Step 1: validate userId (JWT se aaya)
         if (userId == null) {
             throw new OrderServiceException("UserId is required");
@@ -45,6 +49,7 @@ public class OrderServiceImpl implements OrderService {
         logger.info("Creating order for user: {}", userId);
 
         // Step 2: Create order object
+        System.out.println("Creating order object for user: " + userId);
         Order order = Order.builder()
                 .userId(userId)   //FIXED
                 .productId(requestDTO.getProductId())
@@ -52,17 +57,22 @@ public class OrderServiceImpl implements OrderService {
                 .status(OrderStatus.CREATED)
                 .build();
 
+        System.out.println("Order object created: " + order);
         try {
             // Step 3: Call inventory service
-            inventoryClient.removeStock(
-                    requestDTO.getProductId(),
-                    requestDTO.getQuantity()
-            );
 
             // Step 4: Save order
             Order savedOrder = orderRepository.save(order);
-
             logger.info("Order created successfully with id: {}", savedOrder.getOrderId());
+
+            // kafka publisher
+            OrderCreatedEvent event = new OrderCreatedEvent(
+                    savedOrder.getOrderId(),
+                    savedOrder.getProductId(),
+                    savedOrder.getQuantity()
+            );
+            producer.sendOrderCreatedEvent(event);
+            System.out.println("Order created and event published: " + event);
 
             return orderMapper.toResponseDTO(savedOrder);
 

@@ -24,9 +24,7 @@ public class OrderController {
     public ResponseEntity<OrderResponseDTO> createOrder(
             @RequestBody @Valid CreateOrderRequestDTO requestDTO,
             Authentication authentication) {
-
         UUID userId = UUID.fromString(authentication.getName());
-
         return ResponseEntity.ok(orderService.createOrder(requestDTO, userId));
     }
 

@@ -13,10 +13,9 @@ public class CreateOrderRequestDTO {
     @NotNull
     private UUID productId;
 
-    private UUID userId;
 
     @Min(1)
-    private int quantity;
+    private Integer quantity;
 
 
 }

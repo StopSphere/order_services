@@ -43,4 +43,8 @@ public class JwtUtil {
                 .parseSignedClaims(token)
                 .getPayload();
     }
+
+    public String extractUserId(String token) {
+        return extractClaims(token).get("userId", String.class);
+    }
 }
