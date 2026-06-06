@@ -29,8 +29,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
 
+    //shifted from feign to event driven architecture
     private final OrderRepository orderRepository;
-    private final InventoryClient inventoryClient;
     private final OrderMapper orderMapper;
     private final OrderEventProducer producer;
 
