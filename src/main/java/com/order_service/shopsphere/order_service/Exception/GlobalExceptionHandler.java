@@ -28,6 +28,7 @@ public class GlobalExceptionHandler {
         error.put("timestamp", LocalDateTime.now());
         error.put("message", "Something went wrong");
         error.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        ex.printStackTrace();
 
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }

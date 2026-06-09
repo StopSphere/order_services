@@ -3,6 +3,7 @@ package com.order_service.shopsphere.order_service.Entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
@@ -28,5 +29,7 @@ public class Order {
 
     @Column(nullable = false)
     private OrderStatus status;
+
+    private BigDecimal totalAmount;
 
 }

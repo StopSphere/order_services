@@ -17,24 +17,42 @@ import org.springframework.transaction.annotation.Transactional;
 public class InventoryEventConsumer {
     private final OrderRepository orderRepository;
 
-    @KafkaListener(topics = "inventory-reserved", groupId = "order-service-group")
+//    @KafkaListener(topics = "inventory-reserved", groupId = "order-service-group")
+//    @Transactional
+//    public void consumeInventoryReservedEvent(InventoryReservedEvent event) {
+//        try {
+//            Order order = orderRepository.findById(event.getOrderId())
+//                    .orElseThrow(() -> new RuntimeException("Order not found: " + event.getOrderId()));
+//
+//            order.setStatus(OrderStatus.CONFIRMED);
+//            orderRepository.save(order);
+//
+//            log.info("Order Confirmed: {}", order.getOrderId());
+//        } catch (Exception ex) {
+//            log.error("Failed to confirm order {}: {}", event.getOrderId(), ex.getMessage());
+//            throw ex;
+//        }
+//    }
+
+    @KafkaListener(topics = "inventory-reserved", groupId = "order-service-group",
+            properties = {
+                    "spring.json.value.default.type=com.order_service.shopsphere.order_service.DTO.Event.InventoryReservedEvent"
+            }
+    )
     @Transactional
-    public void consumeInventoryReservedEvent(InventoryReservedEvent event) {
-        try {
-            Order order = orderRepository.findById(event.getOrderId())
-                    .orElseThrow(() -> new RuntimeException("Order not found: " + event.getOrderId()));
+    public void consumeInventoryReservedEvent(
+            InventoryReservedEvent event) {
 
-            order.setStatus(OrderStatus.CONFIRMED);
-            orderRepository.save(order);
-
-            log.info("Order Confirmed: {}", order.getOrderId());
-        } catch (Exception ex) {
-            log.error("Failed to confirm order {}: {}", event.getOrderId(), ex.getMessage());
-            throw ex;
-        }
+        log.info(
+                "Inventory reserved for order: {}",
+                event.getOrderId()
+        );
     }
 
-    @KafkaListener(topics = "inventory-failed", groupId = "order-service-group")
+    @KafkaListener(topics = "inventory-failed", groupId = "order-service-group"
+    ,properties = {
+            "spring.json.value.default.type=com.order_service.shopsphere.order_service.DTO.Event.InventoryFailedEvent"
+    })
     @Transactional
     public void consumeInventoryFailedEvent(InventoryFailedEvent event) {
         try {

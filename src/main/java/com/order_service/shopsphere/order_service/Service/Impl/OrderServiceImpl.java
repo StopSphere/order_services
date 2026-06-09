@@ -1,10 +1,12 @@
 package com.order_service.shopsphere.order_service.Service.Impl;
 
 import com.order_service.shopsphere.order_service.Client.InventoryClient;
+import com.order_service.shopsphere.order_service.Client.ProductClient;
 import com.order_service.shopsphere.order_service.DTO.Event.OrderCreatedEvent;
 import com.order_service.shopsphere.order_service.DTO.request.CreateOrderRequestDTO;
 import com.order_service.shopsphere.order_service.DTO.response.OrderResponseDTO;
 import com.order_service.shopsphere.order_service.DTO.response.PagedResponse;
+import com.order_service.shopsphere.order_service.DTO.response.ProductResponse;
 import com.order_service.shopsphere.order_service.Entity.Order;
 import com.order_service.shopsphere.order_service.Entity.OrderStatus;
 import com.order_service.shopsphere.order_service.Exception.OrderServiceException;
@@ -22,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,7 +36,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
     private final OrderEventProducer producer;
-
+    private final ProductClient productClient;
     private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
     @Override
@@ -46,6 +49,13 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderServiceException("UserId is required");
         }
 
+        ProductResponse product= productClient.getProduct(requestDTO.getProductId());
+        BigDecimal totalAmount =
+                product.getPrice().multiply(
+                        BigDecimal.valueOf(
+                                requestDTO.getQuantity()
+                        )
+                );
         logger.info("Creating order for user: {}", userId);
 
         // Step 2: Create order object
@@ -54,6 +64,7 @@ public class OrderServiceImpl implements OrderService {
                 .userId(userId)   //FIXED
                 .productId(requestDTO.getProductId())
                 .quantity(requestDTO.getQuantity())
+                .totalAmount(totalAmount)
                 .status(OrderStatus.CREATED)
                 .build();
 
@@ -69,7 +80,8 @@ public class OrderServiceImpl implements OrderService {
             OrderCreatedEvent event = new OrderCreatedEvent(
                     savedOrder.getOrderId(),
                     savedOrder.getProductId(),
-                    savedOrder.getQuantity()
+                    savedOrder.getQuantity(),
+                    savedOrder.getTotalAmount()
             );
             producer.sendOrderCreatedEvent(event);
             System.out.println("Order created and event published: " + event);

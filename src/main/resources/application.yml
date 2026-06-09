@@ -15,15 +15,14 @@ spring:
 
     consumer:
       group-id: order-service-group
-      auto-offset-reset: earliest
+      auto-offset-reset: latest
 
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
 
       properties:
         spring.json.trusted.packages: "*"
-        spring.json.value.default.type: com.order_service.shopsphere.order_service.DTO.Event.InventoryReservedEvent
-
+        spring.json.use.type.headers: false
     properties:
       spring.json.add.type.headers: false
 
