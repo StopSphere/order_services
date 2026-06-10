@@ -1,8 +1,10 @@
 package com.order_service.shopsphere.order_service.Service;
 
+import com.order_service.shopsphere.order_service.Client.ProductClient;
 import com.order_service.shopsphere.order_service.DTO.Event.OrderCreatedEvent;
 import com.order_service.shopsphere.order_service.DTO.request.CreateOrderRequestDTO;
 import com.order_service.shopsphere.order_service.DTO.response.OrderResponseDTO;
+import com.order_service.shopsphere.order_service.DTO.response.ProductResponse;
 import com.order_service.shopsphere.order_service.Entity.Order;
 import com.order_service.shopsphere.order_service.Entity.OrderStatus;
 import com.order_service.shopsphere.order_service.Exception.OrderServiceException;
@@ -20,6 +22,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,7 +40,10 @@ class OrderServiceTest {
     private OrderMapper orderMapper;
 
     @Mock
-    private OrderEventProducer orderEventProducer;
+    private OrderEventProducer producer;
+
+    @Mock
+    private ProductClient productClient;
 
     @InjectMocks
     private OrderServiceImpl orderService;
@@ -45,11 +51,15 @@ class OrderServiceTest {
     @Captor
     private ArgumentCaptor<OrderCreatedEvent> eventCaptor;
 
+    @Captor
+    private ArgumentCaptor<Order> orderCaptor;
+
     @Test
     void shouldCreateOrderSuccessfully() {
 
         UUID userId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
 
         CreateOrderRequestDTO request =
                 new CreateOrderRequestDTO(
@@ -57,21 +67,36 @@ class OrderServiceTest {
                         2
                 );
 
-        Order savedOrder = new Order();
-        savedOrder.setOrderId(UUID.randomUUID());
-        savedOrder.setUserId(userId);
-        savedOrder.setProductId(productId);
-        savedOrder.setQuantity(2);
-        savedOrder.setStatus(OrderStatus.CREATED);
+        ProductResponse productResponse =
+                new ProductResponse();
+
+        productResponse.setPrice(
+                BigDecimal.valueOf(100)
+        );
+
+        Order savedOrder = Order.builder()
+                .orderId(orderId)
+                .userId(userId)
+                .productId(productId)
+                .quantity(2)
+                .totalAmount(BigDecimal.valueOf(200))
+                .status(OrderStatus.CREATED)
+                .build();
 
         OrderResponseDTO responseDTO =
                 new OrderResponseDTO();
 
-        when(orderRepository.save(any(Order.class)))
-                .thenReturn(savedOrder);
+        when(
+                productClient.getProduct(productId)
+        ).thenReturn(productResponse);
 
-        when(orderMapper.toResponseDTO(savedOrder))
-                .thenReturn(responseDTO);
+        when(
+                orderRepository.save(any(Order.class))
+        ).thenReturn(savedOrder);
+
+        when(
+                orderMapper.toResponseDTO(savedOrder)
+        ).thenReturn(responseDTO);
 
         OrderResponseDTO result =
                 orderService.createOrder(
@@ -85,15 +110,48 @@ class OrderServiceTest {
         );
 
         verify(orderRepository)
-                .save(any(Order.class));
+                .save(orderCaptor.capture());
 
-        verify(orderEventProducer)
+        Order capturedOrder =
+                orderCaptor.getValue();
+
+        assertEquals(
+                userId,
+                capturedOrder.getUserId()
+        );
+
+        assertEquals(
+                productId,
+                capturedOrder.getProductId()
+        );
+
+        assertEquals(
+                2,
+                capturedOrder.getQuantity()
+        );
+
+        assertEquals(
+                BigDecimal.valueOf(200),
+                capturedOrder.getTotalAmount()
+        );
+
+        assertEquals(
+                OrderStatus.CREATED,
+                capturedOrder.getStatus()
+        );
+
+        verify(producer)
                 .sendOrderCreatedEvent(
                         eventCaptor.capture()
                 );
 
         OrderCreatedEvent event =
                 eventCaptor.getValue();
+
+        assertEquals(
+                orderId,
+                event.getOrderId()
+        );
 
         assertEquals(
                 productId,
@@ -104,6 +162,14 @@ class OrderServiceTest {
                 2,
                 event.getQuantity()
         );
+
+        assertEquals(
+                BigDecimal.valueOf(200),
+                event.getAmount()
+        );
+
+        verify(orderMapper)
+                .toResponseDTO(savedOrder);
     }
 
     @Test
@@ -130,6 +196,7 @@ class OrderServiceTest {
         );
 
         verifyNoInteractions(orderRepository);
+        verifyNoInteractions(producer);
     }
 
     @Test
@@ -144,31 +211,51 @@ class OrderServiceTest {
                         2
                 );
 
-        Order savedOrder = new Order();
+        ProductResponse productResponse =
+                new ProductResponse();
 
-        savedOrder.setOrderId(UUID.randomUUID());
-        savedOrder.setUserId(userId);
-        savedOrder.setProductId(productId);
-        savedOrder.setQuantity(2);
-        savedOrder.setStatus(OrderStatus.CREATED);
+        productResponse.setPrice(
+                BigDecimal.valueOf(100)
+        );
 
-        when(orderRepository.save(any(Order.class)))
-                .thenReturn(savedOrder);
+        Order savedOrder = Order.builder()
+                .orderId(UUID.randomUUID())
+                .userId(userId)
+                .productId(productId)
+                .quantity(2)
+                .totalAmount(BigDecimal.valueOf(200))
+                .status(OrderStatus.CREATED)
+                .build();
+
+        when(
+                productClient.getProduct(productId)
+        ).thenReturn(productResponse);
+
+        when(
+                orderRepository.save(any(Order.class))
+        ).thenReturn(savedOrder);
 
         doThrow(
-                new RuntimeException(
-                        "Kafka failure"
-                )
-        ).when(orderEventProducer)
+                new RuntimeException("Kafka failure")
+        ).when(producer)
                 .sendOrderCreatedEvent(any());
 
-        assertThrows(
-                OrderServiceException.class,
-                () -> orderService.createOrder(
-                        request,
-                        userId
-                )
+        OrderServiceException exception =
+                assertThrows(
+                        OrderServiceException.class,
+                        () -> orderService.createOrder(
+                                request,
+                                userId
+                        )
+                );
+
+        assertEquals(
+                "Order failed due to inventory issue",
+                exception.getMessage()
         );
+
+        verify(producer)
+                .sendOrderCreatedEvent(any());
     }
 
     @Test
@@ -182,11 +269,13 @@ class OrderServiceTest {
         OrderResponseDTO response =
                 new OrderResponseDTO();
 
-        when(orderRepository.findById(orderId))
-                .thenReturn(Optional.of(order));
+        when(
+                orderRepository.findById(orderId)
+        ).thenReturn(Optional.of(order));
 
-        when(orderMapper.toResponseDTO(order))
-                .thenReturn(response);
+        when(
+                orderMapper.toResponseDTO(order)
+        ).thenReturn(response);
 
         OrderResponseDTO result =
                 orderService.getOrderById(orderId);
@@ -198,6 +287,9 @@ class OrderServiceTest {
 
         verify(orderRepository)
                 .findById(orderId);
+
+        verify(orderMapper)
+                .toResponseDTO(order);
     }
 
     @Test
@@ -205,8 +297,9 @@ class OrderServiceTest {
 
         UUID orderId = UUID.randomUUID();
 
-        when(orderRepository.findById(orderId))
-                .thenReturn(Optional.empty());
+        when(
+                orderRepository.findById(orderId)
+        ).thenReturn(Optional.empty());
 
         OrderServiceException exception =
                 assertThrows(
@@ -214,9 +307,9 @@ class OrderServiceTest {
                         () -> orderService.getOrderById(orderId)
                 );
 
-        assertTrue(
+        assertEquals(
+                "Order not found with id: " + orderId,
                 exception.getMessage()
-                        .contains("Order not found")
         );
     }
 
@@ -263,4 +356,6 @@ class OrderServiceTest {
                 exception.getMessage()
         );
     }
+
+
 }

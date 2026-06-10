@@ -8,15 +8,17 @@ import com.order_service.shopsphere.order_service.Kafka.InventoryEventConsumer;
 import com.order_service.shopsphere.order_service.Repository.OrderRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +30,9 @@ class InventoryEventConsumerTest {
     @InjectMocks
     private InventoryEventConsumer inventoryEventConsumer;
 
+    @Captor
+    private ArgumentCaptor<Order> orderCaptor;
+
     @Test
     void shouldConfirmOrderSuccessfully() {
 
@@ -38,11 +43,15 @@ class InventoryEventConsumerTest {
         order.setStatus(OrderStatus.CREATED);
 
         InventoryReservedEvent event =
-                new InventoryReservedEvent(orderId);
+                new InventoryReservedEvent(
+                        orderId,
+                        UUID.randomUUID(),
+                        2,
+                        BigDecimal.valueOf(1000)
+                );
 
-        when(
-                orderRepository.findById(orderId)
-        ).thenReturn(Optional.of(order));
+        when(orderRepository.findById(orderId))
+                .thenReturn(Optional.of(order));
 
         inventoryEventConsumer
                 .consumeInventoryReservedEvent(event);
@@ -52,8 +61,24 @@ class InventoryEventConsumerTest {
                 order.getStatus()
         );
 
-        verify(orderRepository)
-                .save(order);
+        verify(orderRepository, times(1))
+                .findById(orderId);
+
+        verify(orderRepository, times(1))
+                .save(orderCaptor.capture());
+
+        Order savedOrder =
+                orderCaptor.getValue();
+
+        assertEquals(
+                orderId,
+                savedOrder.getOrderId()
+        );
+
+        assertEquals(
+                OrderStatus.CONFIRMED,
+                savedOrder.getStatus()
+        );
     }
 
     @Test
@@ -71,9 +96,8 @@ class InventoryEventConsumerTest {
                         "Insufficient stock"
                 );
 
-        when(
-                orderRepository.findById(orderId)
-        ).thenReturn(Optional.of(order));
+        when(orderRepository.findById(orderId))
+                .thenReturn(Optional.of(order));
 
         inventoryEventConsumer
                 .consumeInventoryFailedEvent(event);
@@ -83,8 +107,24 @@ class InventoryEventConsumerTest {
                 order.getStatus()
         );
 
-        verify(orderRepository)
-                .save(order);
+        verify(orderRepository, times(1))
+                .findById(orderId);
+
+        verify(orderRepository, times(1))
+                .save(orderCaptor.capture());
+
+        Order savedOrder =
+                orderCaptor.getValue();
+
+        assertEquals(
+                orderId,
+                savedOrder.getOrderId()
+        );
+
+        assertEquals(
+                OrderStatus.CANCELLED,
+                savedOrder.getStatus()
+        );
     }
 
     @Test
@@ -92,18 +132,34 @@ class InventoryEventConsumerTest {
 
         UUID orderId = UUID.randomUUID();
 
-        when(
-                orderRepository.findById(orderId)
-        ).thenReturn(Optional.empty());
+        when(orderRepository.findById(orderId))
+                .thenReturn(Optional.empty());
 
         InventoryReservedEvent event =
-                new InventoryReservedEvent(orderId);
+                new InventoryReservedEvent(
+                        orderId,
+                        UUID.randomUUID(),
+                        2,
+                        BigDecimal.valueOf(1000)
+                );
 
-        assertThrows(
-                RuntimeException.class,
-                () -> inventoryEventConsumer
-                        .consumeInventoryReservedEvent(event)
+        RuntimeException exception =
+                assertThrows(
+                        RuntimeException.class,
+                        () -> inventoryEventConsumer
+                                .consumeInventoryReservedEvent(event)
+                );
+
+        assertEquals(
+                "Order not found: " + orderId,
+                exception.getMessage()
         );
+
+        verify(orderRepository, times(1))
+                .findById(orderId);
+
+        verify(orderRepository, never())
+                .save(any());
     }
 
     @Test
@@ -111,9 +167,8 @@ class InventoryEventConsumerTest {
 
         UUID orderId = UUID.randomUUID();
 
-        when(
-                orderRepository.findById(orderId)
-        ).thenReturn(Optional.empty());
+        when(orderRepository.findById(orderId))
+                .thenReturn(Optional.empty());
 
         InventoryFailedEvent event =
                 new InventoryFailedEvent(
@@ -121,10 +176,23 @@ class InventoryEventConsumerTest {
                         "Inventory Error"
                 );
 
-        assertThrows(
-                RuntimeException.class,
-                () -> inventoryEventConsumer
-                        .consumeInventoryFailedEvent(event)
+        RuntimeException exception =
+                assertThrows(
+                        RuntimeException.class,
+                        () -> inventoryEventConsumer
+                                .consumeInventoryFailedEvent(event)
+                );
+
+        assertEquals(
+                "Order not found: " + orderId,
+                exception.getMessage()
         );
+
+        verify(orderRepository, times(1))
+                .findById(orderId);
+
+        verify(orderRepository, never())
+                .save(any());
     }
+
 }

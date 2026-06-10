@@ -34,7 +34,9 @@ public class InventoryEventConsumer {
 //        }
 //    }
 
-    @KafkaListener(topics = "inventory-reserved", groupId = "order-service-group",
+    @KafkaListener(
+            topics = "inventory-reserved",
+            groupId = "order-service-group",
             properties = {
                     "spring.json.value.default.type=com.order_service.shopsphere.order_service.DTO.Event.InventoryReservedEvent"
             }
@@ -43,10 +45,39 @@ public class InventoryEventConsumer {
     public void consumeInventoryReservedEvent(
             InventoryReservedEvent event) {
 
-        log.info(
-                "Inventory reserved for order: {}",
-                event.getOrderId()
-        );
+        try {
+
+            Order order =
+                    orderRepository.findById(
+                            event.getOrderId()
+                    ).orElseThrow(
+                            () -> new RuntimeException(
+                                    "Order not found: "
+                                            + event.getOrderId()
+                            )
+                    );
+
+            order.setStatus(
+                    OrderStatus.CONFIRMED
+            );
+
+            orderRepository.save(order);
+
+            log.info(
+                    "Order Confirmed: {}",
+                    order.getOrderId()
+            );
+
+        } catch (Exception ex) {
+
+            log.error(
+                    "Failed to confirm order {}: {}",
+                    event.getOrderId(),
+                    ex.getMessage()
+            );
+
+            throw ex;
+        }
     }
 
     @KafkaListener(topics = "inventory-failed", groupId = "order-service-group"
